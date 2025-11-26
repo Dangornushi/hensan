@@ -1,0 +1,23 @@
+// プログラム全体（関数宣言 + トップレベルブロック）
+program   := func_decl* block?;
+
+// 関数宣言
+func_decl := "def" name "(" params? ")" ":" NEWLINE INDENT block DEDENT;
+
+// ブロック（複数の文を含むシーケンス）
+block     := stmt+;
+stmt      := call_func NEWLINE?;
+
+// 関数呼び出し
+call_func := name "(" call_args? ")";
+
+// 関数宣言用パラメータ（型 + 名前）
+params    := param ("," param)*;
+param     := type name;
+
+// 関数呼び出し用引数（式/変数名のみ）
+call_args := call_arg ("," call_arg)*;
+call_arg  := name;
+
+type      := "int" | "float";
+name      := "[a-zA-Z_]+";

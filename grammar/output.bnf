@@ -1,0 +1,35 @@
+// プログラム全体
+program   := func_decl join "\n\n" "\n\n" block?;
+
+// 関数宣言（Rust形式）
+func_decl := "fn " name "(" params? ")" " {\n" block "}";
+
+// ブロック - programから呼ばれたらfn main()でラップ
+block := if @context == "program" then
+    ("fn main() {\n" stmt join "\n" "}")
+else
+    (stmt join "\n");
+
+// 文（インデント + 関数呼び出し + セミコロン）
+stmt := "    " call_func ";";
+
+// 関数呼び出し
+call_func := name "(" call_args? ")";
+
+// 関数宣言用パラメータ（カンマ区切り、順序逆転）
+params    := param join ", ";
+param     := name ": " type;
+
+// 関数呼び出し用引数
+call_args := call_arg join ", ";
+call_arg  := name;
+
+// 型名の変換
+type      := match @value {
+    "int" => "i32",
+    "float" => "f64",
+    _ => @value
+};
+
+// 識別子はそのまま出力
+name      := match @value { _ => @value };
