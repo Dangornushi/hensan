@@ -1,0 +1,5 @@
+# Rust compiled files
+target/
+
+# Debug files
+debug/
