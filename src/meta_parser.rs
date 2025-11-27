@@ -1,4 +1,3 @@
-use regex::Regex;
 use std::collections::HashMap;
 
 /// 文法式 (入力BNF用)
@@ -56,6 +55,8 @@ pub enum OutputExpr {
         then_expr: Box<OutputExpr>,
         else_expr: Box<OutputExpr>,
     },
+    /// 選択 (A | B)
+    Choice(Vec<OutputExpr>),
 }
 
 /// 入力BNFのルール
@@ -269,8 +270,11 @@ impl MetaParser {
         let base = match ch {
             '"' => {
                 let lit = self.parse_string_literal();
+                // 単一の [ や ] はリテラルとして扱う
+                if lit == "[" || lit == "]" {
+                    GrammarExpr::Literal(lit)
                 // 正規表現メタ文字を含む場合はパターンとして扱う
-                if lit.starts_with('[') || lit.contains('+') || lit.contains('*') || lit.contains('\\') {
+                } else if lit.starts_with('[') || lit.contains('+') || lit.contains('*') || lit.contains('\\') {
                     GrammarExpr::Pattern(lit)
                 } else {
                     GrammarExpr::Literal(lit)
@@ -295,6 +299,7 @@ impl MetaParser {
                     "INDENT" => GrammarExpr::Indent,
                     "DEDENT" => GrammarExpr::Dedent,
                     "NEWLINE" => GrammarExpr::Newline,
+                    "SAME_INDENT" => GrammarExpr::SameIndent,
                     _ => GrammarExpr::RuleRef(name),
                 }
             }
@@ -355,6 +360,27 @@ impl MetaParser {
     }
 
     fn parse_output_expr(&mut self) -> OutputExpr {
+        let mut choices = vec![self.parse_output_sequence()];
+
+        loop {
+            self.skip_whitespace_and_comments();
+            if self.peek_char() == Some('|') {
+                self.consume_char();
+                self.skip_whitespace_and_comments();
+                choices.push(self.parse_output_sequence());
+            } else {
+                break;
+            }
+        }
+
+        if choices.len() == 1 {
+            choices.pop().unwrap()
+        } else {
+            OutputExpr::Choice(choices)
+        }
+    }
+
+    fn parse_output_sequence(&mut self) -> OutputExpr {
         self.skip_whitespace_and_comments();
 
         // match構文のチェック (matchの後が識別子文字でないことを確認)

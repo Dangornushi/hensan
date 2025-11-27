@@ -302,6 +302,7 @@ impl<'a> Parser<'a> {
             GrammarExpr::Indent => self.parse_indent(context_rule),
             GrammarExpr::Dedent => self.parse_dedent(context_rule),
             GrammarExpr::Newline => self.parse_newline(context_rule),
+            GrammarExpr::SameIndent => self.parse_same_indent(context_rule),
         }
     }
 
@@ -330,30 +331,34 @@ impl<'a> Parser<'a> {
 
     /// DEDENT トークンをパース
     fn parse_dedent(&mut self, context_rule: &str) -> Option<ASTNode> {
-        // 保留中のDEDENTがあれば消費
+        // 保留中のDEDENTがあれば消費（スタックもpop）
         if self.pending_dedents > 0 {
             self.pending_dedents -= 1;
+            self.indent_stack.pop();
             return Some(ASTNode::with_value("_dedent", ""));
         }
 
         let current_indent = *self.indent_stack.last().unwrap_or(&0);
 
         if self.current_line_indent < current_indent {
-            // インデントが減少した
+            // インデントが減少した - 1レベルだけpop
             self.indent_stack.pop();
 
-            // 複数レベルのDEDENTが必要かチェック
+            // さらにDEDENTが必要かチェック（pending_dedentsに記録）
             let new_indent = *self.indent_stack.last().unwrap_or(&0);
             if self.current_line_indent < new_indent {
-                // まだDEDENTが必要
-                while self.indent_stack.len() > 1 {
-                    let level = *self.indent_stack.last().unwrap();
+                // まだDEDENTが必要なレベル数を数える
+                let mut extra_dedents = 0;
+                let mut test_stack = self.indent_stack.clone();
+                while test_stack.len() > 1 {
+                    let level = *test_stack.last().unwrap();
                     if self.current_line_indent >= level {
                         break;
                     }
-                    self.indent_stack.pop();
-                    self.pending_dedents += 1;
+                    test_stack.pop();
+                    extra_dedents += 1;
                 }
+                self.pending_dedents = extra_dedents;
             }
 
             Some(ASTNode::with_value("_dedent", ""))
@@ -402,6 +407,21 @@ impl<'a> Parser<'a> {
         self.at_line_start = true;
         self.update_line_indent();
         Some(ASTNode::with_value("_newline", "\n"))
+    }
+
+    /// SAME_INDENT トークンをパース（現在のインデントレベルと一致）
+    fn parse_same_indent(&mut self, context_rule: &str) -> Option<ASTNode> {
+        let current_indent = *self.indent_stack.last().unwrap_or(&0);
+
+        if self.current_line_indent == current_indent {
+            // インデントレベルが一致
+            self.skip_whitespace_no_newline();
+            self.at_line_start = false;
+            Some(ASTNode::with_value("_same_indent", ""))
+        } else {
+            self.record_error("SAME_INDENT", context_rule);
+            None
+        }
     }
 
     fn parse_literal(&mut self, lit: &str, context_rule: &str) -> Option<ASTNode> {

@@ -160,6 +160,9 @@ fn main() {
         }
     };
 
+    // デバッグ: ASTを出力
+    eprintln!("AST: {:#?}", ast);
+
     // Step 4: ASTから出力コード生成
     let gen = Generator::new(&output_grammar);
     let output = gen.generate(&ast);

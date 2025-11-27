@@ -1,23 +1,53 @@
-// プログラム全体（関数宣言 + トップレベルブロック）
-program   := func_decl* block?;
+// プログラム全体（関数宣言 + トップレベル文）
+program   := func_decl* toplevel?;
+
+// トップレベルの文（関数の外）
+toplevel  := stmt+;
 
 // 関数宣言
 func_decl := "def" name "(" params? ")" ":" NEWLINE INDENT block DEDENT;
 
 // ブロック（複数の文を含むシーケンス）
 block     := stmt+;
-stmt      := call_func NEWLINE?;
+stmt      := SAME_INDENT (if_stmt | for_stmt | while_stmt | let_stmt | call_stmt);
+
+// 文の種類
+call_stmt := call_func NEWLINE?;
+if_stmt   := "if" condition ":" NEWLINE INDENT block DEDENT elif_clause* else_clause?;
+for_stmt  := "for" name "in" iterable ":" NEWLINE INDENT block DEDENT;
+while_stmt := "while" condition ":" NEWLINE INDENT block DEDENT;
+let_stmt  := params "=" call_args NEWLINE?;
+
+// elif節とelse節
+elif_clause := SAME_INDENT "elif" condition ":" NEWLINE INDENT block DEDENT;
+else_clause := SAME_INDENT "else" ":" NEWLINE INDENT block DEDENT;
+
+// 条件式（シンプルな比較）
+condition := lhs comparison_op rhs | expr;
+comparison_op := "==" | "!=" | "<" | ">" | "<=" | ">=";
+
+// 左辺・右辺・式
+lhs       := expr;
+rhs       := expr;
+expr      := array | call_func | number | name;
+
+// イテラブル（for文用）
+iterable  := range_expr | array | call_func | name;
+range_expr := "range" "(" range_args ")";
+range_args := expr ("," expr)*;
+number    := "[0-9]+";
+array     := "[" "]" | "[" call_args "]";
 
 // 関数呼び出し
 call_func := name "(" call_args? ")";
 
 // 関数宣言用パラメータ（型 + 名前）
 params    := param ("," param)*;
-param     := type name;
+param     := name (":" type)?;
 
-// 関数呼び出し用引数（式/変数名のみ）
+// 関数呼び出し用引数（式）
 call_args := call_arg ("," call_arg)*;
-call_arg  := name;
+call_arg  := expr;
 
 type      := "int" | "float";
 name      := "[a-zA-Z_]+";

@@ -127,6 +127,17 @@ impl<'a> Generator<'a> {
                     self.generate_expr(else_expr, ast, current_rule, context)
                 }
             }
+
+            OutputExpr::Choice(alternatives) => {
+                // 各選択肢を試して、最初に成功したものを返す
+                for alt in alternatives {
+                    let result = self.generate_expr(alt, ast, current_rule, context);
+                    if !result.is_empty() {
+                        return result;
+                    }
+                }
+                String::new()
+            }
         }
     }
 }

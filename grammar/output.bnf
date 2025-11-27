@@ -1,28 +1,77 @@
 // プログラム全体
-program   := func_decl join "\n\n" "\n\n" block?;
+program   := func_decl join "\n\n" "\n\n" toplevel?;
+
+// トップレベルの文（fn main()でラップ）
+toplevel  := "fn main() {\n" stmt join "\n" "\n}";
 
 // 関数宣言（Rust形式）
-func_decl := "fn " name "(" params? ")" " {\n" block "}";
+func_decl := "fn " name "(" params? ")" " {\n" block "\n}";
 
-// ブロック - programから呼ばれたらfn main()でラップ
-block := if @context == "program" then
-    ("fn main() {\n" stmt join "\n" "}")
-else
-    (stmt join "\n");
+// ブロック（関数内、インデントあり）
+block := stmt join "\n";
 
-// 文（インデント + 関数呼び出し + セミコロン）
-stmt := "    " call_func ";";
+// 文（常にインデントあり）
+stmt := if_stmt | for_stmt | while_stmt | call_stmt | let_stmt;
+
+// 文の種類
+call_stmt := "    " call_func ";";
+let_stmt  := "    let " params " = " call_args ";";
+
+// if文（Rust形式）
+if_stmt := "    if " condition " {\n" block "\n    }" elif_clause join "" else_clause;
+
+// for文（Rust形式）
+for_stmt := "    for " name " in " iterable " {\n" block "\n    }";
+
+// while文（Rust形式）
+while_stmt := "    while " condition " {\n" block "\n    }";
+
+// elif/else節（Rustでは else if と else）
+elif_clause := " else if " condition " {\n" block "\n    }";
+else_clause := " else {\n" block "\n    }" | "";
+
+// 条件式（比較演算子がある場合とない場合）
+condition := lhs comparison_op rhs | expr;
+
+// 比較演算子（ASTの値には先頭スペースが含まれる）
+comparison_op := match @value {
+    " ==" => " == ",
+    " !=" => " != ",
+    " <" => " < ",
+    " >" => " > ",
+    " <=" => " <= ",
+    " >=" => " >= ",
+    _ => @value
+};
+
+// 左辺・右辺（nameまたはnumberを直接参照）
+lhs := name | number;
+rhs := name | number;
+
+// 式（名前、数値、関数呼び出し、配列）
+expr := name | number | call_func | array;
+
+// イテラブル（for文用）
+iterable := range_expr | array | call_func | name;
+range_expr := range_args;
+range_args := expr join "..";
+
+// 配列リテラル
+array := "[" call_args? "]";
+
+// 数値リテラル
+number := match @value { _ => @value };
 
 // 関数呼び出し
 call_func := name "(" call_args? ")";
 
-// 関数宣言用パラメータ（カンマ区切り、順序逆転）
+// パラメータ（カンマ区切り）
 params    := param join ", ";
-param     := name ": " type;
+param     := name;
 
-// 関数呼び出し用引数
+// 関数呼び出し用引数（ASTではcall_argの直下にname/numberがある）
 call_args := call_arg join ", ";
-call_arg  := name;
+call_arg  := name | number | call_func | array;
 
 // 型名の変換
 type      := match @value {
@@ -31,5 +80,8 @@ type      := match @value {
     _ => @value
 };
 
-// 識別子はそのまま出力
-name      := match @value { _ => @value };
+// 識別子 - mainは常にmain_implにリネーム
+name := match @value {
+    "main" => "main_impl",
+    _ => @value
+};
